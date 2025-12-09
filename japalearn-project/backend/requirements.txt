@@ -28,6 +28,7 @@ openai==1.50.0
 # Japanese NLP
 sudachipy==0.6.8
 sudachidict-core==20240716
+pykakasi==2.2.1  # Proper hiragana-to-romaji conversion (adopted from jidoujisho)
 # spacy==3.7.5
 # ja-ginza==5.1.3  # Uncomment for advanced NLP
 # jamdict==0.1a11  # JMdict wrapper

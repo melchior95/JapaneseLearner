@@ -10,6 +10,13 @@ try:
 except ImportError:
     SUDACHI_AVAILABLE = False
 
+try:
+    import pykakasi
+
+    PYKAKASI_AVAILABLE = True
+except ImportError:
+    PYKAKASI_AVAILABLE = False
+
 
 class TokenizerService:
     """Japanese text tokenization and morphological analysis."""
@@ -20,6 +27,12 @@ class TokenizerService:
             self.mode = tokenizer.Tokenizer.SplitMode.C
         else:
             self.tokenizer_obj = None
+
+        # Initialize pykakasi for proper romanji conversion
+        if PYKAKASI_AVAILABLE:
+            self.kakasi = pykakasi.kakasi()
+        else:
+            self.kakasi = None
 
     async def tokenize(self, text: str) -> list[dict[str, Any]]:
         """
@@ -81,62 +94,85 @@ class TokenizerService:
 
     def _to_romanji(self, hiragana: str) -> str:
         """
-        Convert hiragana to romanji (simplified mapping).
-        In production, use a proper library like kakasi or pykakasi.
+        Convert hiragana to romanji using pykakasi (proper conversion).
+        Falls back to simplified mapping if pykakasi unavailable.
+
+        Adopted from jidoujisho's KanaKit approach for robust conversion.
         """
-        # This is a very simplified mapping - use a proper library in production
+        # Use pykakasi if available (handles all Japanese characters properly)
+        if PYKAKASI_AVAILABLE and self.kakasi:
+            try:
+                # pykakasi converts hiragana/kanji to romanji
+                result = ""
+                for item in self.kakasi.convert(hiragana):
+                    # item = {'orig': '..', 'kana': '..', 'kanji': '..', 'pron': '..', 'romaji': '..'}
+                    if 'romaji' in item:
+                        result += item['romaji']
+                    elif 'kana' in item:
+                        result += item['kana']
+                    else:
+                        result += item.get('orig', '')
+                return result.lower()
+            except Exception as e:
+                print(f"Pykakasi conversion error: {e}, falling back to mapping")
+                return self._to_romanji_mapping(hiragana)
+
+        return self._to_romanji_mapping(hiragana)
+
+    def _to_romanji_mapping(self, hiragana: str) -> str:
+        """
+        Fallback romanji conversion using comprehensive character mapping.
+        Based on jidoujisho's hiragana-to-romaji conversion (improved).
+        """
+        # Comprehensive mapping including dakuten and special characters
         mapping = {
-            "あ": "a",
-            "い": "i",
-            "う": "u",
-            "え": "e",
-            "お": "o",
-            "か": "ka",
-            "き": "ki",
-            "く": "ku",
-            "け": "ke",
-            "こ": "ko",
-            "さ": "sa",
-            "し": "shi",
-            "す": "su",
-            "せ": "se",
-            "そ": "so",
-            "た": "ta",
-            "ち": "chi",
-            "つ": "tsu",
-            "て": "te",
-            "と": "to",
-            "な": "na",
-            "に": "ni",
-            "ぬ": "nu",
-            "ね": "ne",
-            "の": "no",
-            "は": "ha",
-            "ひ": "hi",
-            "ふ": "fu",
-            "へ": "he",
-            "ほ": "ho",
-            "ま": "ma",
-            "み": "mi",
-            "む": "mu",
-            "め": "me",
-            "も": "mo",
-            "や": "ya",
-            "ゆ": "yu",
-            "よ": "yo",
-            "ら": "ra",
-            "り": "ri",
-            "る": "ru",
-            "れ": "re",
-            "ろ": "ro",
-            "わ": "wa",
-            "を": "wo",
-            "ん": "n",
-            # Add more mappings as needed
+            # Vowels
+            "あ": "a", "い": "i", "う": "u", "え": "e", "お": "o",
+            # K-row
+            "か": "ka", "き": "ki", "く": "ku", "け": "ke", "こ": "ko",
+            "が": "ga", "ぎ": "gi", "ぐ": "gu", "げ": "ge", "ご": "go",
+            # S-row
+            "さ": "sa", "し": "si", "す": "su", "せ": "se", "そ": "so",
+            "ざ": "za", "じ": "zi", "ず": "zu", "ぜ": "ze", "ぞ": "zo",
+            # T-row
+            "た": "ta", "ち": "ti", "つ": "tu", "て": "te", "と": "to",
+            "だ": "da", "ぢ": "di", "づ": "du", "で": "de", "ど": "do",
+            # N-row
+            "な": "na", "に": "ni", "ぬ": "nu", "ね": "ne", "の": "no",
+            # H-row
+            "は": "ha", "ひ": "hi", "ふ": "hu", "へ": "he", "ほ": "ho",
+            "ば": "ba", "び": "bi", "ぶ": "bu", "べ": "be", "ぼ": "bo",
+            "ぱ": "pa", "ぴ": "pi", "ぷ": "pu", "ぺ": "pe", "ぽ": "po",
+            # M-row
+            "ま": "ma", "み": "mi", "む": "mu", "め": "me", "も": "mo",
+            # Y-row
+            "や": "ya", "ゆ": "yu", "よ": "yo",
+            # R-row
+            "ら": "ra", "り": "ri", "る": "ru", "れ": "re", "ろ": "ro",
+            # W-row
+            "わ": "wa", "ゐ": "wi", "ゑ": "we", "を": "wo", "ん": "n",
+            # Small tsu (sokuon) - typically handled differently
+            "ゃ": "ya", "ゅ": "yu", "ょ": "yo", "ぁ": "a", "ぃ": "i",
+            "ぅ": "u", "ぇ": "e", "ぉ": "o", "ゎ": "wa", "ゝ": "",
         }
 
         result = ""
-        for char in hiragana:
+        i = 0
+        while i < len(hiragana):
+            char = hiragana[i]
+
+            # Handle small tsu (sokuon) - doubles the next consonant
+            if char == "っ" and i + 1 < len(hiragana):
+                next_char = hiragana[i + 1]
+                next_romaji = mapping.get(next_char, next_char)
+                # Add first consonant of next character
+                if next_romaji:
+                    result += next_romaji[0]
+                i += 1
+                continue
+
+            # Regular character mapping
             result += mapping.get(char, char)
+            i += 1
 
         return result
