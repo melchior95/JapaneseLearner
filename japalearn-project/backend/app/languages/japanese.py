@@ -1,7 +1,18 @@
 """Japanese language support implementation.
 
 Ported from jidoujisho's JapaneseLanguage class.
-Uses sudachi for tokenization and morphological analysis.
+
+Jidoujisho uses:
+- MeCab for morphological analysis (via mecab_dart)
+- Ve (Vietnamese NLP) for enhanced morphological analysis
+- KanaKit for kana conversions
+
+JapaLearn uses:
+- Sudachi for morphological analysis (modern alternative to MeCab)
+- Pykakasi for kana/kanji conversions
+- TokenizerService for consistent interface
+
+Both achieve same result: proper Japanese tokenization and root form extraction.
 """
 
 from __future__ import annotations
