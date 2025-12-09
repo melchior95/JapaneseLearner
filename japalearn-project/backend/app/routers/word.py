@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user_optional
 from app.core.db import get_session
+from app.core.language_manager import LanguageManager
 from app.models.user import User
 from app.services.grammar_service import GrammarService
 from app.services.jdict_service import JDictService
@@ -66,16 +67,37 @@ class ExplainResponse(BaseModel):
 @router.get("/{word}/info", response_model=WordInfo)
 async def get_word_info(
     word: str,
+    language: str = "ja",
     session: AsyncSession = Depends(get_session),
     current_user: Optional[User] = Depends(get_current_user_optional),
+    language_manager: LanguageManager = Depends(lambda: LanguageManager()),
 ) -> WordInfo:
     """
-    Get detailed information about a Japanese word.
+    Get detailed information about a word in specified language.
 
-    - Returns dictionary definition, readings, examples
-    - Kanji breakdown with meanings
-    - JLPT level and grammar notes
+    Supports multiple languages via Language abstraction.
+    Uses fallback chain for robust word lookup.
+
+    Args:
+        word: Word to look up
+        language: Language code (default: 'ja' for Japanese)
+        session: Database session
+        current_user: Current user (optional)
+        language_manager: Language manager instance
+
+    Returns:
+        Detailed word information
+
+    Raises:
+        HTTPException: If language not supported or lookup fails
     """
+    # Validate language
+    if not language_manager.is_language_registered(language):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Language '{language}' not supported. Available: {', '.join(language_manager.get_available_languages().keys())}"
+        )
+
     jdict_service = JDictService()
 
     try:
