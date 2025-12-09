@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # Database
-    database_url: str = "postgresql+asyncpg://app:app@localhost:5432/japalearn"
+    # Use SQLite for development (no external database required)
+    database_url: str = "sqlite+aiosqlite:///./japalearn.db"
 
     # Redis
     redis_url: str = "redis://localhost:6379"
@@ -48,9 +49,23 @@ class Settings(BaseSettings):
     openai_tts_voice: str = "alloy"  # alloy, echo, fable, onyx, nova, shimmer
     openai_whisper_model: str = "whisper-1"
 
-    # Google Translate
-    google_translate_api_key: Optional[str] = None
-    # If None, will use free googletrans library (less reliable)
+    # Translation Providers
+    # EASY SWITCHING: Change default_translation_provider to switch backends
+    default_translation_provider: str = "local_llm"  # "local_llm", "google_cloud", "deepl"
+
+    # Google Cloud Translation API
+    google_cloud_api_key: Optional[str] = None
+
+    # DeepL API
+    deepl_api_key: Optional[str] = None
+
+    # Ollama (Local LLM)
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:14b-instruct-q4_K_M"
+
+    # Cache settings
+    enable_cache_warming: bool = True
+    cache_ttl_translations: int = 604800  # 7 days for translations
 
     # Japanese NLP
     sudachi_dict: str = "core"  # core, small, full
@@ -64,7 +79,10 @@ class Settings(BaseSettings):
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",  # Vite dev server
+        "http://localhost:5174",  # Vite dev server (alternative port)
         "http://localhost:8080",
+        "http://192.168.1.184:5173",  # Network IP for Vite dev server
+        "http://192.168.1.184:5174",  # Network IP for Vite dev server (alternative port)
     ]
 
 
